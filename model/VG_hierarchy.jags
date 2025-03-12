@@ -1,0 +1,76 @@
+model{
+  for(i in 1:Nobs){ # Number of observations
+    # Likelihood of VWC (volumetric water content, proportion)
+    theta[i] ~ dnorm(mu[i], tau)
+    # Replicated data
+    theta.rep[i]~ dnorm(mu[i], tau)
+    
+    # theta.s is saturated VWC
+    # theta.r is residual VWC from oven dried sample
+    # h.cm is water potential in cm
+    # Parameters are alpha.cm (inverse of air-entry value, cm ^-1)
+    # n (empirical shape parameter, unitless)
+    mu[i] <- theta.r[trt[i]] + ((theta.s - theta.r[trt[i]])/
+                            pow(1 + (pow(alpha.cm[trt[i]]*h.cm[i], n[trt[i]])),(1-(1/n[trt[i]]))))
+                            
+    # Squared differences
+    sqdiff[i] <- pow(theta[i] - theta.rep[i], 2)
+
+  }
+  
+   # Compute Bayesian R2 value
+  var.pred <- pow(sd(mu[]), 2)
+  var.resid <- 1/tau
+  R2 <- var.pred/(var.pred + var.resid)
+  
+  # Hierarchical priors for VG parameters
+  for(j in 1:Ntrt){ # Number of treatments
+  
+    # Log scale to maintain support of (0, Inf)
+    alpha.cm[j] ~ dlnorm(mu.log.alpha, tau.log.alpha)
+    n[j] ~ dlnorm(mu.log.n, tau.log.n)
+    theta.r[j] ~ dlnorm(mu.log.theta.r, tau.log.theta.r)
+    
+  }
+  
+  # Root node priors for parameter means
+  mu.log.alpha ~ dnorm(-2.5, 1.5)
+  mu.log.n ~ dnorm(0.65, 3)
+  mu.log.theta.r ~ dnorm(-3.5, 3.2)
+  
+  E.alpha.cm <- exp(mu.log.alpha)
+  E.n <- exp(mu.log.n)
+  E.theta.r <- exp(mu.log.theta.r)
+
+  # Root node priors for parameter precisions
+  # Small group size, folded-t distribution
+  tau.eps.alpha ~ dt(0, Talpha, 2)
+  sig.alpha <- abs(tau.eps.alpha)
+  tau.log.alpha <- pow(sig.alpha, -2)
+  
+  tau.eps.n ~ dt(0, Tn, 2)
+  sig.n <- abs(tau.eps.n)
+  tau.log.n <- pow(sig.n, -2)
+  
+  tau.eps.theta.r ~ dt(0, Ttheta.r, 2)
+  sig.theta.r <- abs(tau.eps.theta.r)
+  tau.log.theta.r <- pow(sig.theta.r, -2)
+  
+  # Parameters for folded t, set as data
+  Talpha <- pow(Salpha, -2)
+  Tn <- pow(Sn, -2)
+  Ttheta.r <- pow(Stheta.r, -2)
+  
+  # Priors for hierarchical parameteters
+  #tau.log.alpha ~ dgamma(0.01, 0.01)
+  #tau.log.n ~ dgamma(0.01, 0.01)
+  #tau.log.theta.r ~ dgamma(0.01, 0.01)
+  
+  # Prior for population standard dev
+  tau ~ dgamma(0.01, 0.01)
+  sig <- pow(tau, -0.5)
+  
+  # Dsum
+  Dsum <- sum(sqdiff[])
+  
+}
